@@ -112,8 +112,8 @@ describe("Update Task Mutation", () => {
   it("should throw error when description equals taskName", async () => {
     const input = {
       taskId: "task123",
-      taskName: "Same Name",
-      description: "Same Name",
+      taskName: "Same Name That Is Long Enough",
+      description: "Same Name That Is Long Enough",
       userId: "user123",
     };
 
@@ -255,6 +255,7 @@ describe("Update Task Mutation", () => {
     };
 
     MockedTask.findById.mockResolvedValue(mockExistingTask);
+    MockedTask.findOne.mockResolvedValue(null); // No duplicate task name
     MockedTask.findByIdAndUpdate.mockRejectedValue(validationError);
 
     await expect(updateTask({}, { input })).rejects.toThrow(GraphQLError);
@@ -275,6 +276,7 @@ describe("Update Task Mutation", () => {
     };
 
     MockedTask.findById.mockResolvedValue(mockExistingTask);
+    MockedTask.findOne.mockResolvedValue(null); // No duplicate task name
     MockedTask.findByIdAndUpdate.mockRejectedValue(duplicateError);
 
     await expect(updateTask({}, { input })).rejects.toThrow(GraphQLError);
@@ -291,6 +293,7 @@ describe("Update Task Mutation", () => {
     };
 
     MockedTask.findById.mockResolvedValue(mockExistingTask);
+    MockedTask.findOne.mockResolvedValue(null); // No duplicate task name
     MockedTask.findByIdAndUpdate.mockRejectedValue(new Error("Unknown database error"));
 
     await expect(updateTask({}, { input })).rejects.toThrow(GraphQLError);
