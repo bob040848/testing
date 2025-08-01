@@ -8,7 +8,7 @@ type QueryArguments ={
 export const getAllActiveTasks = async (_: unknown, { userId }: QueryArguments) => {
     try {
       if (!userId) {
-        throw new GraphQLError("userId is needed");
+        throw new GraphQLError("userId is required");
       }
 
       const userExists = await Task.findOne({ userId });

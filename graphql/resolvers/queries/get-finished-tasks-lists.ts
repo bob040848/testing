@@ -8,7 +8,7 @@ type QueryArguments ={
 export const getFinishedTasksLists = async (_: unknown, { userId }: QueryArguments) => {
     try {
       if (!userId) {
-        throw new GraphQLError("userId is needed");
+        throw new GraphQLError("userId is required");
       }
 
       const userExists = await Task.findOne({ userId });
@@ -29,9 +29,9 @@ export const getFinishedTasksLists = async (_: unknown, { userId }: QueryArgumen
         throw error;
       }
       if (error instanceof Error) {
-        throw new GraphQLError("Failed to retrieve finished tasks: " + error.message);
+        throw new GraphQLError("Failed to retrieve completed tasks: " + error.message);
       }
-      throw new GraphQLError("Failed to retrieve finished tasks: Unknown error");
+      throw new GraphQLError("Failed to retrieve completed tasks: Unknown error");
     }
   }
 

@@ -1,8 +1,8 @@
-import { getUserActiveTasksLists } from "graphql/resolvers/queries";
+import { getAllActiveTasks   } from "@/graphql/resolvers/queries";
 import { GraphQLError } from "graphql";
-import { Task as TaskOriginal } from "../../models/index";
+import { Task as TaskDuplicate } from "@/mongoose/index";
 
-jest.mock("../../models/index", () => {
+jest.mock("@/mongoose/index", () => {
   return {
     Task: {
       findOne: jest.fn(),
@@ -13,21 +13,21 @@ jest.mock("../../models/index", () => {
   };
 });
 
-const Task = require("../../models/index").Task as jest.Mocked<typeof TaskOriginal>;
+const Task = require("@/mongoose/index").Task as jest.Mocked<typeof TaskDuplicate>;
 
-describe("getUserActiveTasksLists query", () => {
+describe("getAllActiveTasks query", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it("should throw an error if userId is missing", async () => {
-    await expect(getUserActiveTasksLists({}, { userId: "" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "" })).rejects.toThrow(
       new GraphQLError("userId is required")
     );
   });
 
   it("should throw an error if userId is null/undefined", async () => {
-    await expect(getUserActiveTasksLists({}, { userId: null as any })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: null as any })).rejects.toThrow(
       new GraphQLError("userId is required")
     );
   });
@@ -35,7 +35,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should throw an error if user is not found", async () => {
     Task.findOne.mockResolvedValue(null);
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("User not found")
     );
 
@@ -73,7 +73,7 @@ describe("getUserActiveTasksLists query", () => {
     Task.findOne.mockResolvedValue(mockUser);
     (Task.find as jest.Mock) = mockFind;
 
-    const result = await getUserActiveTasksLists({}, { userId: "1" });
+    const result = await getAllActiveTasks({}, { userId: "1" });
 
     expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
     expect(Task.find).toHaveBeenCalledWith({
@@ -94,7 +94,7 @@ describe("getUserActiveTasksLists query", () => {
     Task.findOne.mockResolvedValue(mockUser);
     (Task.find as jest.Mock) = mockFind;
 
-    const result = await getUserActiveTasksLists({}, { userId: "1" });
+    const result = await getAllActiveTasks({}, { userId: "1" });
 
     expect(result).toEqual([]);
     expect(Task.find).toHaveBeenCalledWith({
@@ -124,7 +124,7 @@ describe("getUserActiveTasksLists query", () => {
     Task.findOne.mockResolvedValue(mockUser);
     (Task.find as jest.Mock) = mockFind;
 
-    const result = await getUserActiveTasksLists({}, { userId: "1" });
+    const result = await getAllActiveTasks({}, { userId: "1" });
 
     expect(Task.find).toHaveBeenCalledWith({
       userId: "1",
@@ -136,7 +136,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should handle Error instance during findOne", async () => {
     Task.findOne.mockRejectedValue(new Error("DB connection error"));
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: DB connection error")
     );
   });
@@ -149,7 +149,7 @@ describe("getUserActiveTasksLists query", () => {
     const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
     (Task.find as jest.Mock) = mockFind;
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: Sort operation failed")
     );
   });
@@ -157,7 +157,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should handle non-Error unknown errors", async () => {
     Task.findOne.mockRejectedValue("String error");
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: Unknown error")
     );
   });
@@ -165,7 +165,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should handle null error", async () => {
     Task.findOne.mockRejectedValue(null);
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: Unknown error")
     );
   });
@@ -173,7 +173,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should handle undefined error", async () => {
     Task.findOne.mockRejectedValue(undefined);
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: Unknown error")
     );
   });
@@ -181,7 +181,7 @@ describe("getUserActiveTasksLists query", () => {
   it("should handle object without message property", async () => {
     Task.findOne.mockRejectedValue({ code: 500, status: "error" });
 
-    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+    await expect(getAllActiveTasks({}, { userId: "1" })).rejects.toThrow(
       new GraphQLError("Failed to retrieve active tasks: Unknown error")
     );
   });
@@ -207,7 +207,7 @@ describe("getUserActiveTasksLists query", () => {
     Task.findOne.mockResolvedValue(mockUser);
     (Task.find as jest.Mock) = mockFind;
 
-    const result = await getUserActiveTasksLists({}, { userId: "2" });
+    const result = await getAllActiveTasks({}, { userId: "2" });
 
     expect(Task.findOne).toHaveBeenCalledWith({ userId: "2" });
     expect(Task.find).toHaveBeenCalledWith({

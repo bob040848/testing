@@ -1,7 +1,7 @@
-import { updateTask } from "graphql/resolvers/mutations";
-import { Task as TaskOriginal } from "../../models/index";
+import { updateTask } from "@/graphql/resolvers/mutations";
+import { Task as TaskDuplicate} from "@/mongoose/index";
 
-jest.mock("../../models/index", () => {
+jest.mock("@/mongoose/index", () => {
   return {
     Task: {
       findById: jest.fn(),
@@ -11,7 +11,7 @@ jest.mock("../../models/index", () => {
   };
 });
 
-const Task = require("../../models/index").Task as jest.Mocked<typeof TaskOriginal>;
+const Task = require("@/mongoose/index").Task as jest.Mocked<typeof TaskDuplicate>;
 
 describe("updateTask mutation", () => {
   beforeEach(() => {
