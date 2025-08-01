@@ -1,217 +1,248 @@
-import { getFinishedTasksLists } from "@/graphql/resolvers/queries/get-finished-tasks-lists";
-import { Task } from "@/mongoose/index";
+import { getUserDoneTasksLists } from "graphql/resolvers/queries";
 import { GraphQLError } from "graphql";
+import { Task as TaskOriginal } from "../../models/index";
 
-jest.mock("@/mongoose/index", () => ({
+jest.mock("../../models/index", () => ({
   Task: {
     findOne: jest.fn(),
-    find: jest.fn(() => ({
-      sort: jest.fn(),
-    })),
+    find: jest.fn(),
   },
 }));
 
-const MockedTask = Task as jest.Mocked<typeof Task>;
+const Task = require("../../models/index").Task as jest.Mocked<typeof TaskOriginal>;
 
-describe("Get Finished Tasks Lists Query", () => {
+describe("getUserDoneTasksLists query", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  const mockFinishedTasks = [
-    {
-      _id: "task1",
-      taskName: "Completed Task 1",
-      description: "This is a completed task description",
-      priority: 3,
-      isDone: true,
-      userId: "user123",
-      tags: ["work", "completed"],
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-05"),
-    },
-    {
-      _id: "task2",
-      taskName: "Completed Task 2", 
-      description: "This is another completed task description",
-      priority: 5,
-      isDone: true,
-      userId: "user123",
-      tags: ["personal", "completed"],
-      createdAt: new Date("2024-01-02"),
-      updatedAt: new Date("2024-01-04"),
-    },
-    {
-      _id: "task3",
-      taskName: "Completed Task 3",
-      description: "This is yet another completed task description",
-      priority: 1,
-      isDone: true,
-      userId: "user123", 
-      tags: ["urgent", "completed"],
-      createdAt: new Date("2024-01-03"),
-      updatedAt: new Date("2024-01-03"),
-    },
-  ];
-
-  it("should successfully retrieve finished tasks for valid user", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockResolvedValue(mockFinishedTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
-
-    const result = await getFinishedTasksLists({}, { userId });
-
-    expect(MockedTask.findOne).toHaveBeenCalledWith({ userId });
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
-      isDone: true,
-    });
-    expect(mockFind.sort).toHaveBeenCalledWith({ updatedAt: -1 });
-    expect(result).toEqual(mockFinishedTasks);
+  it("should throw an error if userId is missing", async () => {
+    await expect(getUserDoneTasksLists({}, { userId: "" })).rejects.toThrow(
+      new GraphQLError("userId is required")
+    );
   });
 
-  it("should throw error when userId is not provided", async () => {
-    await expect(getFinishedTasksLists({}, { userId: "" })).rejects.toThrow(GraphQLError);
-    await expect(getFinishedTasksLists({}, { userId: "" })).rejects.toThrow("userId is needed");
+  it("should throw an error if userId is null/undefined", async () => {
+    await expect(getUserDoneTasksLists({}, { userId: null as any })).rejects.toThrow(
+      new GraphQLError("userId is required")
+    );
   });
 
-  it("should throw error when user does not exist", async () => {
-    const userId = "nonexistentUser";
-    
-    MockedTask.findOne.mockResolvedValue(null);
+  it("should throw an error if user is not found", async () => {
+    Task.findOne.mockResolvedValue(null);
 
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow("User not found");
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("User not found")
+    );
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
   });
 
-  it("should return empty array when user has no finished tasks", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockResolvedValue([]);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should return done tasks sorted by updatedAt descending", async () => {
+    Task.findOne.mockResolvedValue({ _id: "123" });
 
-    const result = await getFinishedTasksLists({}, { userId });
+    const mockTasks = [
+      { 
+        _id: "task1",
+        taskName: "Completed Task 1", 
+        description: "This task was completed recently",
+        priority: 3,
+        tags: ["work"],
+        userId: "1",
+        isDone: true,
+        updatedAt: new Date("2025-07-30") 
+      },
+      { 
+        _id: "task2",
+        taskName: "Completed Task 2", 
+        description: "This task was completed earlier",
+        priority: 1,
+        tags: ["personal"],
+        userId: "1",
+        isDone: true,
+        updatedAt: new Date("2025-07-29") 
+      },
+    ];
 
+    const sortMock = jest.fn().mockResolvedValue(mockTasks);
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    const result = await getUserDoneTasksLists({}, { userId: "1" });
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
+    expect(Task.find).toHaveBeenCalledWith({ userId: "1", isDone: true });
+    expect(sortMock).toHaveBeenCalledWith({ updatedAt: -1 });
+    expect(result).toEqual(mockTasks);
+  });
+
+  it("should return empty array when user has no completed tasks", async () => {
+    Task.findOne.mockResolvedValue({ _id: "123" });
+
+    const emptyTasks: any[] = [];
+
+    const sortMock = jest.fn().mockResolvedValue(emptyTasks);
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    const result = await getUserDoneTasksLists({}, { userId: "1" });
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
+    expect(Task.find).toHaveBeenCalledWith({ userId: "1", isDone: true });
+    expect(sortMock).toHaveBeenCalledWith({ updatedAt: -1 });
     expect(result).toEqual([]);
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
-      isDone: true,
-    });
   });
 
-  it("should handle database errors gracefully", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockRejectedValue(new Error("Database connection error"));
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should return only tasks with isDone: true", async () => {
+    Task.findOne.mockResolvedValue({ _id: "123" });
 
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(
-      "Failed to retrieve finished tasks: Database connection error"
+    const mockCompletedTasks = [
+      {
+        _id: "task1",
+        taskName: "Done task",
+        description: "This task is completed",
+        priority: 2,
+        tags: [],
+        userId: "1",
+        isDone: true,
+        updatedAt: new Date(),
+      },
+    ];
+
+    const sortMock = jest.fn().mockResolvedValue(mockCompletedTasks);
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    const result = await getUserDoneTasksLists({}, { userId: "1" });
+
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "1",
+      isDone: true, 
+    });
+    expect(result).toEqual(mockCompletedTasks);
+  });
+
+  it("should handle different user IDs correctly", async () => {
+    Task.findOne.mockResolvedValue({ _id: "user456" });
+
+    const mockTasks = [
+      {
+        _id: "task3",
+        taskName: "User 456 completed task",
+        description: "This belongs to user 456",
+        priority: 4,
+        tags: ["urgent"],
+        userId: "2",
+        isDone: true,
+        updatedAt: new Date(),
+      },
+    ];
+
+    const sortMock = jest.fn().mockResolvedValue(mockTasks);
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    const result = await getUserDoneTasksLists({}, { userId: "2" });
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "2" });
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "2",
+      isDone: true,
+    });
+    expect(result).toEqual(mockTasks);
+  });
+
+  it("should handle Error instance during findOne", async () => {
+    Task.findOne.mockRejectedValue(new Error("Database connection failed"));
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Database connection failed")
     );
   });
 
-  it("should handle unknown errors", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockRejectedValue("Unknown error");
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should handle Error instance during find operation", async () => {
+    Task.findOne.mockResolvedValue({ _id: "123" });
 
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(
-      "Failed to retrieve finished tasks: Unknown error"
+    const sortMock = jest.fn().mockRejectedValue(new Error("Sort operation failed"));
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Sort operation failed")
     );
   });
 
-  it("should sort tasks by updatedAt descending", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockResolvedValue(mockFinishedTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should handle unexpected errors gracefully", async () => {
+    Task.findOne.mockRejectedValue(new Error("Unexpected DB error"));
 
-    await getFinishedTasksLists({}, { userId });
-
-    expect(mockFind.sort).toHaveBeenCalledWith({ updatedAt: -1 });
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unexpected DB error")
+    );
   });
 
-  it("should handle GraphQL errors and re-throw them", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockRejectedValue(new GraphQLError("Custom GraphQL error"));
+  it("should handle non-Error unknown errors", async () => {
+    Task.findOne.mockRejectedValue("String error");
 
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getFinishedTasksLists({}, { userId })).rejects.toThrow("Custom GraphQL error");
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
   });
 
-  it("should only return tasks where isDone is true", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockResolvedValue(mockFinishedTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should handle null error", async () => {
+    Task.findOne.mockRejectedValue(null);
 
-    await getFinishedTasksLists({}, { userId });
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
 
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
-      isDone: true,
+  it("should handle undefined error", async () => {
+    Task.findOne.mockRejectedValue(undefined);
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
+
+  it("should handle object without message property", async () => {
+    Task.findOne.mockRejectedValue({ code: 500, status: "error" });
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
+
+  it("should handle number error", async () => {
+    Task.findOne.mockRejectedValue(404);
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
+
+  it("should handle boolean error", async () => {
+    Task.findOne.mockRejectedValue(false);
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
+
+  it("should handle find operation error after successful user check", async () => {
+    Task.findOne.mockResolvedValue({ _id: "1" });
+
+    const sortMock = jest.fn().mockRejectedValue("Database timeout");
+    (Task.find as jest.Mock).mockReturnValue({ sort: sortMock });
+
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
+  });
+
+  it("should handle complex object error without Error properties", async () => {
+    Task.findOne.mockRejectedValue({
+      statusCode: 500,
+      error: "Internal Server Error",
+      details: { connection: "failed" }
     });
-  });
 
-  it("should verify user exists before querying finished tasks", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn(),
-    };
-    mockFind.sort.mockResolvedValue(mockFinishedTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
-
-    await getFinishedTasksLists({}, { userId });
-
-    expect(MockedTask.findOne).toHaveBeenCalledWith({ userId });
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
-      isDone: true,
-    });
+    await expect(getUserDoneTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve completed tasks: Unknown error")
+    );
   });
 });

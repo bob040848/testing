@@ -1,178 +1,219 @@
-import { getAllActiveTasks } from "@/graphql/resolvers/queries/get-all-active-tasks";
-import { Task } from "@/mongoose/index";
+import { getUserActiveTasksLists } from "graphql/resolvers/queries";
 import { GraphQLError } from "graphql";
+import { Task as TaskOriginal } from "../../models/index";
 
-jest.mock("@/mongoose/index", () => ({
-  Task: {
-    findOne: jest.fn(),
-    find: jest.fn(() => ({
-      sort: jest.fn(() => ({
-        sort: jest.fn(),
+jest.mock("../../models/index", () => {
+  return {
+    Task: {
+      findOne: jest.fn(),
+      find: jest.fn(() => ({
+        sort: jest.fn().mockReturnThis(),
       })),
-    })),
-  },
-}));
+    },
+  };
+});
 
-const MockedTask = Task as jest.Mocked<typeof Task>;
+const Task = require("../../models/index").Task as jest.Mocked<typeof TaskOriginal>;
 
-describe("Get All Active Tasks Query", () => {
+describe("getUserActiveTasksLists query", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  const mockActiveTasks = [
-    {
-      _id: "task1",
-      taskName: "High Priority Task",
-      description: "This is a high priority task description",
-      priority: 5,
-      isDone: false,
-      userId: "user123",
-      tags: ["urgent", "work"],
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-01"),
-    },
-    {
-      _id: "task2", 
-      taskName: "Medium Priority Task",
-      description: "This is a medium priority task description",
-      priority: 3,
-      isDone: false,
-      userId: "user123",
-      tags: ["work"],
-      createdAt: new Date("2024-01-02"),
-      updatedAt: new Date("2024-01-02"),
-    },
-    {
-      _id: "task3",
-      taskName: "Low Priority Task", 
-      description: "This is a low priority task description",
-      priority: 1,
-      isDone: false,
-      userId: "user123",
-      tags: ["personal"],
-      createdAt: new Date("2024-01-03"),
-      updatedAt: new Date("2024-01-03"),
-    },
-  ];
+  it("should throw an error if userId is missing", async () => {
+    await expect(getUserActiveTasksLists({}, { userId: "" })).rejects.toThrow(
+      new GraphQLError("userId is required")
+    );
+  });
 
-  it("should successfully retrieve active tasks for valid user", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn().mockReturnThis(),
-    };
-    mockFind.sort.mockResolvedValue(mockActiveTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should throw an error if userId is null/undefined", async () => {
+    await expect(getUserActiveTasksLists({}, { userId: null as any })).rejects.toThrow(
+      new GraphQLError("userId is required")
+    );
+  });
 
-    const result = await getAllActiveTasks({}, { userId });
+  it("should throw an error if user is not found", async () => {
+    Task.findOne.mockResolvedValue(null);
 
-    expect(MockedTask.findOne).toHaveBeenCalledWith({ userId });
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("User not found")
+    );
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
+  });
+
+  it("should return active tasks sorted by priority and createdAt when user exists", async () => {
+    const mockUser = { _id: "user1", userId: "1" };
+    const mockActiveTasks = [
+      {
+        _id: "task1",
+        taskName: "High priority task",
+        description: "This is a high priority task",
+        priority: 5,
+        tags: ["urgent"],
+        userId: "1",
+        isDone: false,
+        createdAt: new Date("2023-01-01"),
+      },
+      {
+        _id: "task2",
+        taskName: "Medium priority task",
+        description: "This is a medium priority task",
+        priority: 3,
+        tags: ["work"],
+        userId: "1",
+        isDone: false,
+        createdAt: new Date("2023-01-02"),
+      },
+    ];
+
+    const mockSort = jest.fn().mockResolvedValue(mockActiveTasks);
+    const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
+
+    Task.findOne.mockResolvedValue(mockUser);
+    (Task.find as jest.Mock) = mockFind;
+
+    const result = await getUserActiveTasksLists({}, { userId: "1" });
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "1" });
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "1",
       isDone: false,
     });
-    expect(mockFind.sort).toHaveBeenCalledWith({ priority: -1, createdAt: -1 });
+    expect(mockSort).toHaveBeenCalledWith({ priority: -1, createdAt: -1 });
     expect(result).toEqual(mockActiveTasks);
   });
 
-  it("should throw error when userId is not provided", async () => {
-    await expect(getAllActiveTasks({}, { userId: "" })).rejects.toThrow(GraphQLError);
-    await expect(getAllActiveTasks({}, { userId: "" })).rejects.toThrow("userId is needed");
-  });
+  it("should return empty array when user exists but has no active tasks", async () => {
+    const mockUser = { _id: "user1", userId: "1" };
+    const emptyTasks: any[] = [];
 
-  it("should throw error when user does not exist", async () => {
-    const userId = "nonexistentUser";
-    
-    MockedTask.findOne.mockResolvedValue(null);
+    const mockSort = jest.fn().mockResolvedValue(emptyTasks);
+    const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
 
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow("User not found");
-  });
+    Task.findOne.mockResolvedValue(mockUser);
+    (Task.find as jest.Mock) = mockFind;
 
-  it("should return empty array when user has no active tasks", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn().mockReturnThis(),
-    };
-    mockFind.sort.mockResolvedValue([]);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
-
-    const result = await getAllActiveTasks({}, { userId });
+    const result = await getUserActiveTasksLists({}, { userId: "1" });
 
     expect(result).toEqual([]);
-    expect(MockedTask.find).toHaveBeenCalledWith({
-      userId,
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "1",
       isDone: false,
     });
   });
 
-  it("should handle database errors gracefully", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn().mockReturnThis(),
-    };
-    mockFind.sort.mockRejectedValue(new Error("Database connection error"));
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should return only tasks with isDone: false", async () => {
+    const mockUser = { _id: "user1", userId: "1" };
+    const mockActiveTasks = [
+      {
+        _id: "task1",
+        taskName: "Active task",
+        description: "This task is not done",
+        priority: 3,
+        tags: [],
+        userId: "1",
+        isDone: false,
+        createdAt: new Date(),
+      },
+    ];
 
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(
-      "Failed to retrieve active tasks: Database connection error"
+    const mockSort = jest.fn().mockResolvedValue(mockActiveTasks);
+    const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
+
+    Task.findOne.mockResolvedValue(mockUser);
+    (Task.find as jest.Mock) = mockFind;
+
+    const result = await getUserActiveTasksLists({}, { userId: "1" });
+
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "1",
+      isDone: false, 
+    });
+    expect(result).toEqual(mockActiveTasks);
+  });
+
+  it("should handle Error instance during findOne", async () => {
+    Task.findOne.mockRejectedValue(new Error("DB connection error"));
+
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: DB connection error")
     );
   });
 
-  it("should handle unknown errors", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn().mockReturnThis(),
-    };
-    mockFind.sort.mockRejectedValue("Unknown error");
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should handle Error instance during find operation", async () => {
+    const mockUser = { _id: "user1", userId: "1" };
+    Task.findOne.mockResolvedValue(mockUser);
 
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(
-      "Failed to retrieve active tasks: Unknown error"
+    const mockSort = jest.fn().mockRejectedValue(new Error("Sort operation failed"));
+    const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
+    (Task.find as jest.Mock) = mockFind;
+
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: Sort operation failed")
     );
   });
 
-  it("should sort tasks by priority descending then by createdAt descending", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockResolvedValue({ userId });
-    
-    const mockFind = {
-      sort: jest.fn().mockReturnThis(),
-    };
-    mockFind.sort.mockResolvedValue(mockActiveTasks);
-    
-    (MockedTask.find as jest.Mock).mockReturnValue(mockFind);
+  it("should handle non-Error unknown errors", async () => {
+    Task.findOne.mockRejectedValue("String error");
 
-    await getAllActiveTasks({}, { userId });
-
-    expect(mockFind.sort).toHaveBeenCalledWith({ priority: -1, createdAt: -1 });
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: Unknown error")
+    );
   });
 
-  it("should handle GraphQL errors and re-throw them", async () => {
-    const userId = "user123";
-    
-    MockedTask.findOne.mockRejectedValue(new GraphQLError("Custom GraphQL error"));
+  it("should handle null error", async () => {
+    Task.findOne.mockRejectedValue(null);
 
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow(GraphQLError);
-    await expect(getAllActiveTasks({}, { userId })).rejects.toThrow("Custom GraphQL error");
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: Unknown error")
+    );
+  });
+
+  it("should handle undefined error", async () => {
+    Task.findOne.mockRejectedValue(undefined);
+
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: Unknown error")
+    );
+  });
+
+  it("should handle object without message property", async () => {
+    Task.findOne.mockRejectedValue({ code: 500, status: "error" });
+
+    await expect(getUserActiveTasksLists({}, { userId: "1" })).rejects.toThrow(
+      new GraphQLError("Failed to retrieve active tasks: Unknown error")
+    );
+  });
+
+  it("should handle different user IDs correctly", async () => {
+    const mockUser = { _id: "user2", userId: "2" };
+    const mockActiveTasks = [
+      {
+        _id: "task3",
+        taskName: "Different user task",
+        description: "This belongs to user 456",
+        priority: 2,
+        tags: ["personal"],
+        userId: "2",
+        isDone: false,
+        createdAt: new Date(),
+      },
+    ];
+
+    const mockSort = jest.fn().mockResolvedValue(mockActiveTasks);
+    const mockFind = jest.fn().mockReturnValue({ sort: mockSort });
+
+    Task.findOne.mockResolvedValue(mockUser);
+    (Task.find as jest.Mock) = mockFind;
+
+    const result = await getUserActiveTasksLists({}, { userId: "2" });
+
+    expect(Task.findOne).toHaveBeenCalledWith({ userId: "2" });
+    expect(Task.find).toHaveBeenCalledWith({
+      userId: "2",
+      isDone: false,
+    });
+    expect(result).toEqual(mockActiveTasks);
   });
 });
