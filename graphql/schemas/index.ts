@@ -8,7 +8,7 @@ type Task {
     isDone: Boolean!,
     priority: Int!,
     tags: [String!]!,
-    userId:ID!,
+    userId: ID!,
     createdAt: String,
     updatedAt: String,
 }
@@ -17,27 +17,28 @@ input AddTaskInput {
     taskName: String!,
     description: String!,
     priority: Int!,
-    tags: [String!]!,
-    userId:ID!,
+    tags: [String!],
+    userId: ID!,
 }
 
-input UpdateTaskInput{
+input UpdateTaskInput {
     taskId: ID!,
     taskName: String,
-    description:String,
-    priority:Int,
+    description: String,
+    priority: Int,
     tags: [String!],
     isDone: Boolean,  
-    userId: String
+    userId: String!
 }
 
-type Query{
+type Query {
     helloQuery: String!
     getAllActiveTasks(userId: String!): [Task!]!
     getFinishedTasksLists(userId: String!): [Task!]!
+    getUserDoneTasksLists(userId: String!): [Task!]!
 }
 
-type Mutation{
+type Mutation {
     sayHello(name: String!): String!
     addTask(input: AddTaskInput!): Task!
     updateTask(input: UpdateTaskInput!): Task!
