@@ -1,11 +1,16 @@
-import { sayHello } from "./mutations/say-hello";
-import { helloQuery } from "./queries/hello-query";
+import { sayHello, addTask, updateTask  } from "@/graphql/resolvers/mutations";
+import { helloQuery,getAllActiveTasks, getFinishedTasksLists  } from "@/graphql/resolvers/queries";
+
 
 export const resolvers = {
   Query: {
     helloQuery,
+    addTask,
+    updateTask,
   },
   Mutation: {
     sayHello,
+    getAllActiveTasks,
+    getFinishedTasksLists,
   },
 };
