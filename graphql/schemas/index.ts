@@ -35,7 +35,6 @@ type Query {
     helloQuery: String!
     getAllActiveTasks(userId: String!): [Task!]!
     getFinishedTasksLists(userId: String!): [Task!]!
-    getUserDoneTasksLists(userId: String!): [Task!]!
 }
 
 type Mutation {
